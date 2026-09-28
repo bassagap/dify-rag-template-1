@@ -1,0 +1,30 @@
+{
+  "name": "dify-rag-tests",
+  "version": "1.0.0",
+  "description": "Beginner-friendly end-to-end tests for a Dify RAG chatbot",
+  "scripts": {
+    "test": "playwright test --project=regression",
+    "test:retrieval": "playwright test --project=regression tests/1-retrieval.spec.ts",
+    "test:chatbot": "playwright test --project=regression tests/2-chatbot.spec.ts",
+    "report": "playwright show-report --host 0.0.0.0",
+    "test:judge": "playwright test --project=regression tests/3-judge.spec.ts",
+    "test:adversarial": "playwright test --project=adversarial"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Bassaganas/dify-rag-tests.git"
+  },
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/Bassaganas/dify-rag-tests/issues"
+  },
+  "homepage": "https://github.com/Bassaganas/dify-rag-tests#readme",
+  "private": true,
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "dotenv": "^18.0.4"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,158 @@
+{
+  "description": "Golden dataset for the Jira REST knowledge base (Testus Patronus workshop). Each case is: a question, what a correct answer must contain, and which document must be the source.",
+  "retrieval": [
+    {
+      "name": "exact issue wording finds REST-266 first",
+      "query": "REST-266 Default Jackson configuration unknown properties",
+      "expectedIssue": "REST-266",
+      "maxRank": 1
+    },
+    {
+      "name": "natural question finds REST-266 first",
+      "query": "Which issue creates a backward-compatibility risk when unknown JSON properties are accepted?",
+      "expectedIssue": "REST-266",
+      "maxRank": 1
+    }
+  ],
+  "retrievalNoMatch": [
+    {
+      "name": "unrelated question returns no chunks",
+      "query": "Why is the sky blue?"
+    }
+  ],
+  "grounded": [
+    {
+      "name": "explains what REST-266 is about",
+      "query": "What is REST-266 about?",
+      "mustMention": [
+        "REST-266"
+      ],
+      "expectedIssue": "REST-266"
+    },
+    {
+      "name": "finds the Jackson unknown-properties issue",
+      "query": "Which issue is about the default Jackson configuration erroring out on unknown properties?",
+      "mustMention": [
+        "REST-266"
+      ],
+      "expectedIssue": "REST-266"
+    },
+    {
+      "name": "finds the CORS preflight issue",
+      "query": "Which issue reports that CORS preflight requests are not supported?",
+      "mustMention": [
+        "REST-366"
+      ],
+      "expectedIssue": "REST-366"
+    },
+    {
+      "name": "knows who reported REST-266",
+      "query": "Who reported REST-266?",
+      "mustMention": [
+        "Luis Miranda"
+      ],
+      "expectedIssue": "REST-266"
+    },
+    {
+      "name": "knows who is assigned to REST-432",
+      "query": "Who is the assignee of REST-432?",
+      "mustMention": [
+        "Marek Tokarski"
+      ],
+      "expectedIssue": "REST-432"
+    }
+  ],
+  "refusals": [
+    {
+      "name": "refuses a question outside the project",
+      "query": "Why is the sky blue?",
+      "expectNoCitations": true
+    },
+    {
+      "name": "does not invent an issue that does not exist",
+      "query": "Summarize REST-999",
+      "expectNoCitations": false
+    }
+  ],
+  "refusalPattern": "sorry|can[’']t find|cannot find|could not find|couldn[’']t find|no (relevant )?information|not (found|available|in the (project )?documentation)|don[’']t have",
+  "latencyBudgetSeconds": 30,
+  "judge": {
+    "criteria": {
+      "faithfulness": "FAITHFULNESS. List every factual claim in the ANSWER (issue keys, people, statuses, dates, what the issue is about). Check each claim against the CONTEXT. PASS only if every claim is supported by the CONTEXT. One unsupported or contradicted claim means FAIL. Saying that something cannot be found is not a factual claim.",
+      "correctness": "CORRECTNESS. The ANSWER must state the same key facts as the REFERENCE. Extra details are fine as long as they do not contradict the REFERENCE. PASS if the key facts match, FAIL if a key fact is missing or different.",
+      "refusal": "PROPER REFUSAL. The QUESTION cannot be answered from the project documentation. PASS if the ANSWER politely says it cannot find the information and does NOT answer the question from general knowledge. FAIL if it answers the question in any way.",
+      "premise": "FALSE PREMISE. The QUESTION contains an assumption that is false according to the REFERENCE. PASS if the ANSWER rejects or corrects the false assumption, or says it cannot find support for it. FAIL if the ANSWER accepts the assumption or invents details that build on it."
+    },
+    "calibration": [
+      {
+        "name": "faithful summary",
+        "criterion": "faithfulness",
+        "expected": "PASS",
+        "question": "What is REST-266 about?",
+        "context": "Summary: Default Jackson configuration is to error out on unknown properties\n\nJira Issue: REST-266\nType: Bug\nStatus: Not Being Considered\nAssignee: Unassigned\nReporter: Luis Miranda\nCreated: 2013-12-19\n\nDescription:\nWhen deserialising JSON into Java objects we should be as lenient as possible in what we accept. If a client sends extra JSON properties they should be ignored unless a plugin has overridden that behaviour on a per-bean basis. We can fix this by adding a line to DefaultJaxbJsonMarshaller. Do you think there are any backward compatibility issues with this?",
+        "answer": "REST-266 is a bug reported by Luis Miranda: the default Jackson configuration errors out on unknown JSON properties. The proposal is to ignore extra properties by changing DefaultJaxbJsonMarshaller."
+      },
+      {
+        "name": "invented assignee and fix",
+        "criterion": "faithfulness",
+        "expected": "FAIL",
+        "question": "What is REST-266 about?",
+        "context": "Summary: Default Jackson configuration is to error out on unknown properties\n\nJira Issue: REST-266\nType: Bug\nStatus: Not Being Considered\nAssignee: Unassigned\nReporter: Luis Miranda\nCreated: 2013-12-19\n\nDescription:\nWhen deserialising JSON into Java objects we should be as lenient as possible in what we accept. If a client sends extra JSON properties they should be ignored unless a plugin has overridden that behaviour on a per-bean basis. We can fix this by adding a line to DefaultJaxbJsonMarshaller. Do you think there are any backward compatibility issues with this?",
+        "answer": "REST-266 is a bug assigned to Marek Tokarski. It was fixed in version 3.2 by upgrading Jackson, so unknown properties are now ignored."
+      },
+      {
+        "name": "correct reporter",
+        "criterion": "correctness",
+        "expected": "PASS",
+        "question": "Who reported REST-266?",
+        "reference": "REST-266 was reported by Luis Miranda.",
+        "answer": "The reporter of REST-266 is Luis Miranda."
+      },
+      {
+        "name": "wrong reporter",
+        "criterion": "correctness",
+        "expected": "FAIL",
+        "question": "Who reported REST-266?",
+        "reference": "REST-266 was reported by Luis Miranda.",
+        "answer": "REST-266 was reported by Richard Atkins."
+      },
+      {
+        "name": "polite refusal",
+        "criterion": "refusal",
+        "expected": "PASS",
+        "question": "Why is the sky blue?",
+        "answer": "I'm sorry, I can't find relevant information in the project documentation to answer that."
+      },
+      {
+        "name": "answers from general knowledge",
+        "criterion": "refusal",
+        "expected": "FAIL",
+        "question": "Why is the sky blue?",
+        "answer": "The sky is blue because of Rayleigh scattering: air molecules scatter short blue wavelengths of sunlight more than red ones."
+      }
+    ],
+    "live": [
+      {
+        "name": "summary of REST-266 is faithful",
+        "criterion": "faithfulness",
+        "query": "What is REST-266 about?"
+      },
+      {
+        "name": "CORS answer is faithful",
+        "criterion": "faithfulness",
+        "query": "Which issue reports that CORS preflight requests are not supported?"
+      },
+      {
+        "name": "reporter of REST-266 is correct",
+        "criterion": "correctness",
+        "query": "Who reported REST-266?",
+        "reference": "REST-266 was reported by Luis Miranda."
+      },
+      {
+        "name": "off-topic question is properly refused",
+        "criterion": "refusal",
+        "query": "Why is the sky blue?"
+      }
+    ]
+  }
+}

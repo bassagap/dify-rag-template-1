@@ -1,0 +1,129 @@
+name: RAG tests
+
+# Run from the Actions tab: "RAG tests" → "Run workflow".
+# Results: the run's summary page, and the dashboard on GitHub Pages (all your runs side by side).
+on:
+  workflow_dispatch:
+    inputs:
+      note:
+        description: What did you change in Exercise 3? (shown in the dashboard)
+        required: true
+        default: baseline
+      suite:
+        description: Which tests
+        type: choice
+        options: [regression, adversarial, all]
+        default: all
+      repeat:
+        description: How many times to run each test (LLM answers vary – 3 shows flakiness)
+        type: choice
+        options: ['1', '3']
+        default: '1'
+
+permissions:
+  contents: write # push the report to the gh-pages branch
+
+concurrency:
+  group: rag-tests # one run at a time: runs share your Dify and the dashboard history
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DIFY_BASE_URL: ${{ secrets.DIFY_BASE_URL }}
+      DIFY_APP_KEY: ${{ secrets.DIFY_APP_KEY }}
+      DIFY_DATASET_KEY: ${{ secrets.DIFY_DATASET_KEY }}
+      DIFY_DATASET_ID: ${{ secrets.DIFY_DATASET_ID }}
+      DIFY_JUDGE_KEY: ${{ secrets.DIFY_JUDGE_KEY }}
+      DASHBOARD_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      # API tests only: no browsers to install
+      - run: npm ci
+
+      - name: Check your secrets
+        run: |
+          missing=""
+          for name in DIFY_BASE_URL DIFY_APP_KEY DIFY_DATASET_KEY DIFY_DATASET_ID; do
+            [ -z "${!name}" ] && missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error title=Missing secrets::Add these in Settings → Secrets and variables → Actions:$missing"
+            exit 1
+          fi
+          [ -z "$DIFY_JUDGE_KEY" ] && echo "::notice title=Judge not configured::Add DIFY_JUDGE_KEY to run the LLM-as-a-judge tests" || true
+
+      - name: Run tests
+        id: tests
+        continue-on-error: true # we still want the report when tests fail
+        run: |
+          case "$SUITE" in
+            regression)  projects="--project=regression" ;;
+            adversarial) projects="--project=adversarial" ;;
+            *)           projects="--project=regression --project=adversarial" ;;
+          esac
+          npx playwright test $projects --repeat-each="$REPEAT" \
+            --reporter=list,json,html
+        env:
+          SUITE: ${{ inputs.suite }}
+          REPEAT: ${{ inputs.repeat }}
+          PLAYWRIGHT_JSON_OUTPUT_NAME: results.json
+          PLAYWRIGHT_HTML_OPEN: never
+
+      - name: Summary
+        if: always()
+        run: node scripts/summary.mjs results.json "$RUN_NOTE" "$DASHBOARD_URL" >> "$GITHUB_STEP_SUMMARY"
+        env:
+          RUN_NOTE: ${{ inputs.note }}
+
+      - name: Keep the Playwright report as a download
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-${{ github.run_number }}
+          path: playwright-report/
+          retention-days: 30
+
+      - name: Add this run to the dashboard
+        if: always()
+        run: |
+          # Start from the published site so earlier runs are kept
+          mkdir site
+          if git fetch --depth=1 origin gh-pages 2>/dev/null; then
+            git archive FETCH_HEAD | tar -x -C site
+          fi
+          node scripts/dashboard.mjs site results.json playwright-report
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
+          RUN_NOTE: ${{ inputs.note }}
+          RUN_SUITE: ${{ inputs.suite }}
+          RUN_REPEAT: ${{ inputs.repeat }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Publish the dashboard to GitHub Pages
+        if: always()
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site
+          commit_message: 'Test run #${{ github.run_number }}'
+
+      - name: Result
+        if: always()
+        run: |
+          echo "Dashboard: $DASHBOARD_URL"
+          # Adversarial failures are findings; only a failing regression suite marks the run as failed
+          node -e "
+            const r = require('./results.json'); let bad = 0;
+            const walk = (s) => { for (const sp of s.specs ?? []) for (const t of sp.tests) if (t.projectName === 'regression' && t.status === 'unexpected') bad++; (s.suites ?? []).forEach(walk); };
+            r.suites.forEach(walk);
+            if (bad) { console.log('::error::' + bad + ' regression test run(s) failed'); process.exit(1); }
+          "

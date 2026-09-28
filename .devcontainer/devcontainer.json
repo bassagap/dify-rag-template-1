@@ -1,0 +1,14 @@
+{
+  "name": "Dify RAG tests",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
+  "postCreateCommand": "npm ci && cp -n .env.example .env || true",
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-playwright.playwright"]
+    }
+  },
+  "forwardPorts": [9323],
+  "portsAttributes": {
+    "9323": { "label": "Playwright report" }
+  }
+}
